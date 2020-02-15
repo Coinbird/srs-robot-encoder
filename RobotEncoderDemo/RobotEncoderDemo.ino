@@ -9,9 +9,19 @@
 
 #include "MotorControl.h"
 
+// Timing for PID Velocity control
+unsigned long msLoop = millis();
 
-static int leftTarget = 100;
-static int rightTarget = 100;
+int lastLeftEncoderTicks = 0;
+int lastRightEncoderTicks = 0;
+
+int deltaLeftTicks = 0;
+int deltaRightTicks = 0;
+
+
+// base target speeds in ticks
+//int leftSpeed 10
+//int rightSpeed 10
 
 void setup() {
   Serial.begin(115200);
@@ -23,6 +33,12 @@ void setup() {
 }
 
 
+
+unsigned long reverseTimer = millis();
+
+#define MS_INITIATE_REVERSE 5000
+
+int targetSpeed = 5;
 void loop() {
 
   // NOTE: If you are powering the robot over only USB (battery pack unplugged)
@@ -31,7 +47,43 @@ void loop() {
   // and manually move the wheels, otherwise make sure the battery pack is plugged in 
   // when you set the switch to 2.
 
-  simpleTestLoop();
+
+  if ((millis() - msLoop) > 250) {
+    calcTicksDelta();
+    driveStraightMillimeters(500, deltaLeftTicks, deltaRightTicks);
+    msLoop = millis();   
+  }
+
+  
+//  if ((millis() - msLoop) > 250) {
+//    calcTicksDelta();
+//    leftTargetSpeedTicks(targetSpeed, deltaLeftTicks);
+//    rightTargetSpeedTicks(targetSpeed, deltaRightTicks);
+//    msLoop = millis();   
+//  }
+//
+//  if (millis() - reverseTimer > MS_INITIATE_REVERSE) {
+//    // Drive back and forth interestingly
+//    if (targetSpeed > 0) {
+//      targetSpeed = -5;
+//    } else {
+//      targetSpeed = 5;
+//    }
+//    reverseTimer = millis();
+//  }
+
+}
+
+void calcTicksDelta() {
+  deltaLeftTicks = leftEncoderTicks - lastLeftEncoderTicks;
+  deltaRightTicks = rightEncoderTicks - lastRightEncoderTicks;
+  
+  Serial.println("Deltas: ");
+  Serial.println(deltaLeftTicks);
+  Serial.println(deltaRightTicks);
+  
+  lastLeftEncoderTicks = leftEncoderTicks;
+  lastRightEncoderTicks = rightEncoderTicks;  
 }
 
 void simpleTestLoop() {
@@ -40,6 +92,7 @@ void simpleTestLoop() {
   delay(1000);
   stopMotors();
   printEncoderCounts();
+  printDistance();
   delay(1000);
 
   Serial.println("Moving Back");
@@ -47,5 +100,6 @@ void simpleTestLoop() {
   delay(1000);
   stopMotors();
   printEncoderCounts();
+  printDistance();
   delay(1000);  
 }

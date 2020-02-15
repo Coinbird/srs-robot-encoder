@@ -1,4 +1,5 @@
 #include <Servo.h>
+#include "Odometry.h"
 
 #define LEFT_MOTOR_SERVO_PIN 13
 #define RIGHT_MOTOR_SERVO_PIN 12
@@ -11,28 +12,45 @@
 #define ENCODER_PIN_LEFT 3
 #define ENCODER_PIN_RIGHT 2
 
+// Full speed clockwise = 1.3 ms pulses
+// Max speed is +/- 1300 (added to microseconds)
+#define MAX_SPEED 200
+#define MED_SPEED 50
+#define SLOW_SPEED 25
+#define MIN_SPEED 15
+
 Servo leftServo; 
 Servo rightServo; 
 
 // Encoder counters
 volatile int leftMotorDir = 1; // 1 = forward, -1 = reverse 
-volatile int leftEncoderCount = 0;
+volatile int leftEncoderTicks = 0; // could be long, for long distance missions?
 volatile int rightMotorDir = 1;
-volatile int rightEncoderCount = 0;
+volatile int rightEncoderTicks = 0;
+
+// Current motor speeds
+#define SPEED_DELTA 10
+int leftMotorSpeed = 0;
+int rightMotorSpeed = 0;
+
+// --- INTERRUPT HANDLERS ---
 
 void leftCounter() {
   // Called by interrrupt handler
-  leftEncoderCount += leftMotorDir;
+  leftEncoderTicks += leftMotorDir;
 }
 
 void rightCounter() {
   // Called by interrrupt handler
-    rightEncoderCount += rightMotorDir;
+    rightEncoderTicks += rightMotorDir;
 }
 
+
+// --- SETUP ROUTINES ---
+
 void resetEncoders() {
-  leftEncoderCount = 0;
-  rightEncoderCount = 0;  
+  leftEncoderTicks = 0;
+  rightEncoderTicks = 0;  
 }
 
 void attachMotors() {
@@ -45,13 +63,23 @@ void attachMotors() {
   resetEncoders();
 }
 
+
+// --- DEBUG / INFO ROUTINES ---
+
 void printEncoderCounts() {
   Serial.print("Left counter ");
-  Serial.println(leftEncoderCount);
+  Serial.println(leftEncoderTicks);
   Serial.print("Right counter ");
-  Serial.println(rightEncoderCount);
+  Serial.println(rightEncoderTicks);
 }
 
+void printDistance() {
+  Serial.print("Left distance (mm) ");
+  Serial.println(getDistanceMm(leftEncoderTicks));
+  Serial.print("Right distance (mm) ");
+  Serial.println(getDistanceMm(rightEncoderTicks));
+  
+}
 
 // --- MOVEMENT COMMANDS ---
 
@@ -70,12 +98,55 @@ void rightSpeed(int speed) {
   rightServo.writeMicroseconds(STOP_RIGHT - speed);  // inverse of left
 }
 
+
+void leftTargetSpeedTicks(int desired, int current) {
+  // This is basically simple P control
+  if (desired > current) {
+    leftMotorSpeed += SPEED_DELTA;    
+  } else if (desired < current) {
+    leftMotorSpeed -= SPEED_DELTA;        
+  } // else, stable speed is reached.
+  leftSpeed(leftMotorSpeed);
+}
+
+void rightTargetSpeedTicks(int desired, int current) {
+  if (desired > current) {
+    rightMotorSpeed += SPEED_DELTA;    
+  } else if (desired < current) {
+    rightMotorSpeed -= SPEED_DELTA;        
+  }
+  // Else... stable.
+  rightSpeed(rightMotorSpeed);  
+}
+
+void driveStraightMillimeters(float targetMm, int deltaLeft, int deltaRight) {
+  // NOTE: Generally, reset encoders before issuing this command
+  // Use left encoder as "master" value
+  int target = int(targetMm / distancePerTickMm); // from odometry
+  if (leftEncoderTicks < target) {
+    // TODO adjust track dynamically
+    int ticksRemaining = target - leftEncoderTicks;
+    // Slow down when we get closer
+    leftTargetSpeedTicks(ticksRemaining > 25 ? 5 : 1, deltaLeft);
+    rightTargetSpeedTicks(ticksRemaining > 25 ? 5 : 1, deltaRight);
+    Serial.print("Target: ");
+    Serial.println(target);
+    Serial.print("Progress: ");
+    Serial.println(leftEncoderTicks);
+  }
+
+  if (leftEncoderTicks >= target && leftSpeed > 0) {
+    Serial.println("GOAL REACHED.");
+    stopMotors();
+  }
+}
+
 void testForward() {
-  leftSpeed(50);
-  rightSpeed(50);
+  leftSpeed(MAX_SPEED);
+  rightSpeed(MAX_SPEED);
 }
 
 void testBack() {
-  leftSpeed(-50);
-  rightSpeed(-50);
+  leftSpeed(-MAX_SPEED);
+  rightSpeed(-MAX_SPEED);
 }
