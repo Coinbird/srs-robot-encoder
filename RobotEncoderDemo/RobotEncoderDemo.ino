@@ -17,17 +17,24 @@ void setup() {
   Serial.begin(115200);
   Serial.print("Robot demo: Initializing...");
   attachMotors(); 
+  stopMotors();
+  resetEncoders();
   Serial.println("complete.");
 }
 
 
 void loop() {
 
-  // NOTE: If you are powering the robot over only USB, 
+  // NOTE: If you are powering the robot over only USB (battery pack unplugged)
   // the encoders may brown out and you'll get weird interrupt behavior.
   // To test encoders, you may wish to power breadboard only (switch at 1) 
-  // and manually move the wheels.
-  
+  // and manually move the wheels, otherwise make sure the battery pack is plugged in 
+  // when you set the switch to 2.
+
+  simpleTestLoop();
+}
+
+void simpleTestLoop() {
   Serial.println("Moving Forward");
   testForward();
   delay(1000);
@@ -40,5 +47,5 @@ void loop() {
   delay(1000);
   stopMotors();
   printEncoderCounts();
-  delay(1000);
+  delay(1000);  
 }
